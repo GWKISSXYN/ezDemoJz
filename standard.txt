@@ -1,0 +1,177 @@
+基础URL
+http://localhost:7197
+
+接口列表
+登录接口
+方法：POST
+路径：/admin/acl/index/login
+请求体：{ "username": "string", "password": "string" }
+响应：
+成功：{ "code": 200, "data": { "token": "string" } }
+失败：{ "code": 401, "message": "Invalid username or password" }
+
+获取用户信息
+方法：GET
+路径：/admin/acl/index/info
+请求头：Authorization: Bearer <token>
+响应：
+成功：{ "code": 200, "data": { "username": "string" } }
+失败：{ "code": 403, "message": "Invalid token" }
+
+获取全部的职位接口
+方法：GET
+路径：/admin/acl/role/
+查询参数：page, limit, roleName
+响应：{ "code": 200, "data": ["object"], "total": "number" }
+
+新增岗位的接口
+方法：POST
+路径：/admin/acl/role/save
+请求体：{ "name": "string", "description": "string" }
+响应：{ "code": 200, "message": "Role created successfully", "data": "object" }
+
+更新已有的职位
+方法：PUT
+路径：/admin/acl/role/update
+请求体：{ "id": "number", "name": "string", "description": "string" }
+响应：{ "code": 200, "message": "Role updated successfully", "data": "object" }
+
+删除已有的职位
+方法：DELETE
+路径：/admin/acl/role/remove/:roleId
+响应：{ "code": 200, "message": "Role removed successfully" }
+
+权限管理接口
+方法：GET
+路径：/admin/acl/permission/toAssign/
+查询参数：roleId
+响应：{ "code": 200, "data": ["object"] }
+
+给相应的职位分配权限
+方法：POST
+路径：/admin/acl/permission/doAssign/
+请求体：{ "roleId": "number", "permissionId": "number" }
+响应：{ "code": 200, "message": "Permission assigned successfully" }
+
+获取宿舍信息
+方法：GET
+路径：/admin/acl/dormitory/
+查询参数：page, limit
+响应：{ "code": 200, "data": ["object"] }
+
+获取全部已有用户账号信息
+方法：GET
+路径：/admin/acl/user/
+查询参数：page, limit, username
+响应：{ "code": 200, "data": ["object"], "total": "number" }
+
+添加一个新的用户账号
+方法：POST
+路径：/admin/acl/user/save
+请求体：{ "username": "string", "password": "string" }
+响应：{ "code": 200, "message": "User created successfully", "data": "object" }
+
+更新已有的用户账号
+方法：PUT
+路径：/admin/acl/user/update
+请求体：{ "id": "number", "username": "string", "password": "string" }
+响应：{ "code": 200, "message": "User updated successfully", "data": "object" }
+
+获取用户坐标信息
+方法：GET
+路径：/api/user/coordinates
+响应：[ { "id": "number", "username": "string", "email": "string", "longitude": "number", "latitude": "number" } ]
+
+获取全部职位,当前账号拥有的职位接口
+方法：GET
+路径：/admin/acl/user/toAssign/
+查询参数：userId
+响应：{ "code": 200, "data": ["object"] }
+
+给已有的用户分配角色接口
+方法：POST
+路径：/admin/acl/user/doAssignRole
+请求体：{ "userId": "number", "roleId": "number" }
+响应：{ "code": 200, "message": "Role assigned successfully" }
+
+删除某个账号
+方法：DELETE
+路径：/admin/acl/user/remove/:userId
+响应：{ "code": 200, "message": "User removed successfully" }
+
+批量删除的接口
+方法：DELETE
+路径：/admin/acl/user/batchRemove
+请求体：{ "idList": ["number"] }
+响应：{ "code": 200, "message": "Users removed successfully" }
+
+认证机制
+获取令牌：通过/admin/acl/index/login接口，使用用户名和密码获取JWT令牌。
+使用令牌：在需要认证的请求头中添加Authorization: Bearer <token>。
+
+数据表：
+CREATE TABLE public.dormitories
+(
+  id integer NOT NULL DEFAULT nextval('dormitories_id_seq'::regclass),
+  name character varying(255) NOT NULL,
+  capacity integer,
+  description text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT dormitories_pkey PRIMARY KEY (id)
+)
+
+CREATE TABLE public.permissions
+(
+  id integer NOT NULL DEFAULT nextval('permissions_id_seq'::regclass),
+  name character varying(255) NOT NULL,
+  description text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT permissions_pkey PRIMARY KEY (id)
+)
+
+CREATE TABLE public.role_permissions
+(
+  role_id integer NOT NULL,
+  permission_id integer NOT NULL,
+  CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_id),
+  CONSTRAINT role_permissions_permission_id_fkey FOREIGN KEY (permission_id)
+      REFERENCES public.permissions (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT role_permissions_role_id_fkey FOREIGN KEY (role_id)
+      REFERENCES public.roles (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE CASCADE
+)
+
+CREATE TABLE public.roles
+(
+  id integer NOT NULL DEFAULT nextval('roles_id_seq'::regclass),
+  name character varying(255) NOT NULL,
+  description text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT roles_pkey PRIMARY KEY (id)
+)
+
+CREATE TABLE public.user_roles
+(
+  user_id integer NOT NULL,
+  role_id integer NOT NULL,
+  CONSTRAINT user_roles_pkey PRIMARY KEY (user_id, role_id),
+  CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id)
+      REFERENCES public.roles (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id)
+      REFERENCES public.users (id) MATCH SIMPLE
+      ON UPDATE NO ACTION ON DELETE CASCADE
+)
+
+CREATE TABLE public.users
+(
+  id integer NOT NULL DEFAULT nextval('users_id_seq'::regclass),
+  username character varying(255) NOT NULL,
+  password character varying(255) NOT NULL,
+  email character varying(255),
+  created_at timestamp without time zone DEFAULT now(),
+  longitude numeric(9,6),
+  latitude numeric(9,6),
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+)

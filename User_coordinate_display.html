@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户坐标展示</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f9fc;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            position: absolute; /* 绝对定位 */
+            width: 100%; /* 宽度占满 */
+            z-index: 1000; /* 确保在最上层 */
+        }
+        h1 {
+            margin: 0;
+            font-size: 24px; /* 调整标题大小 */
+            font-weight: bold; /* 加粗 */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2); /* 设置阴影效果 */
+        }
+        #map {
+            width: 100%;
+            height: 100vh; /* 高度设置为视口高度 */
+            position: relative; /* 相对定位便于定位绝对定位的元素 */
+        }
+        #sidebar {
+            width: 280px; /* 固定宽度 */
+            max-height: 80%; /* 最大高度70% */
+            overflow-y: auto; /* 允许纵向滚动 */
+            background-color: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: absolute; /* 悬浮在地图上 */
+            bottom: 20px; /* 距离底部20px */
+            right: 20px; /* 距离右边20px */
+            padding: 15px;
+            border-radius: 8px; /* 圆角 */
+            z-index: 1000; /* 确保在最上层 */
+        }
+        .loader {
+            display: none;
+            margin: 20px auto;
+            text-align: center;
+            font-size: 18px;
+            color: #007bff;
+        }
+        .loading {
+            display: inline;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://api.map.baidu.com/api?v=3.0&ak=3908M4UmWLQ3iQkC4oL4DPDbgiyL4D6h" type="text/javascript"></script>
+</head>
+<body>
+    <header>
+        <h1>用户坐标展示</h1>
+    </header>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h2>人员信息</h2>
+        <div class="loader" id="loader">正在加载用户坐标...</div>
+        <table id="user-list">
+            <thead>
+                <tr>
+                    <th>用户名</th>
+                    <th>电子邮件</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 用户数据动态插入区域 -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        var map;
+
+        // 初始化地图
+        function initMap() {
+            map = new BMap.Map("map");
+            map.centerAndZoom(new BMap.Point(116.404, 39.915), 10); // 默认中心点为北京
+            map.enableScrollWheelZoom(true); // 开启鼠标滚轮缩放
+            updateUserCoordinates(); // 初始加载用户坐标
+        }
+
+        // 从后端获取用户坐标数据
+        function updateUserCoordinates() {
+            document.getElementById("loader").classList.add("loading");
+            fetch('http://localhost:7197/api/user/coordinates') // 确保此 API 返回用户信息和坐标
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    map.clearOverlays(); // 清除现有标注
+                    updateUserList(data); // 更新用户列表
+                    data.forEach(user => {
+                        if (user.longitude && user.latitude) {
+                            var point = new BMap.Point(parseFloat(user.longitude), parseFloat(user.latitude)); // 解析为浮点数
+                            var marker = new BMap.Marker(point);
+                            map.addOverlay(marker); // 添加标注到地图中
+
+                            // 为每个标注添加点击事件，显示用户信息
+                            marker.addEventListener("click", function() {
+                                var infoWindow = new BMap.InfoWindow(`
+                                    <div class="info-window">
+                                        <strong>用户信息</strong><br>
+                                        用户名: ${user.username}<br>
+                                        电子邮件: ${user.email}<br>
+                                        用户坐标: (${user.longitude}, ${user.latitude})
+                                    </div>
+                                `, {
+                                    width: 300,
+                                    height: 150,
+                                    title: "用户信息",
+                                });
+                                map.openInfoWindow(infoWindow, point); // 打开信息窗口
+                            });
+                        }
+                    });
+                })
+                .catch(error => console.error('获取用户坐标数据失败:', error))
+                .finally(() => {
+                    document.getElementById("loader").classList.remove("loading");
+                });
+        }
+
+        // 更新用户列表
+        function updateUserList(data) {
+            const tbody = document.getElementById("user-list").getElementsByTagName('tbody')[0];
+            tbody.innerHTML = ""; // 清空现有表格内容
+
+            data.forEach(user => {
+                const row = tbody.insertRow();
+
+                // 用户名单元格
+                const usernameCell = row.insertCell(0);
+                usernameCell.textContent = user.username;
+
+                // 邮箱单元格
+                const emailCell = row.insertCell(1);
+                emailCell.textContent = user.email;
+
+                // 点击行时定位到对应用户在地图上
+                row.addEventListener("click", function() {
+                    map.setCenter(new BMap.Point(parseFloat(user.longitude), parseFloat(user.latitude))); // 定位到该用户
+                    map.setZoom(15); // 放大地图
+                });
+            });
+        }
+
+        // 在地图初始化后每60秒更新用户坐标
+        window.onload = function() {
+            initMap();
+            setInterval(updateUserCoordinates, 60000); // 每60秒更新
+        }
+    </script>
+</body>
+</html>
